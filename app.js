@@ -95,6 +95,7 @@ app.use((req, res, next) => {
     lusca.csrf()(req, res, next);
   }
 });
+
 app.use(lusca.xframe('SAMEORIGIN'));
 app.use(lusca.xssProtection(true));
 app.disable('x-powered-by');
@@ -127,6 +128,7 @@ app.use('/webfonts', express.static(path.join(__dirname, 'node_modules/@fortawes
  * Primary app routes.
  */
 app.get('/', homeController.index);
+app.get('/escape-velocity', homeController.escapeVelocity);
 app.get('/login', userController.getLogin);
 app.post('/login', userController.postLogin);
 app.get('/logout', userController.logout);
