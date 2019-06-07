@@ -1,5 +1,5 @@
 const passport = require('passport');
-const request = require('request');
+const axios = require('axios');
 const { Strategy: InstagramStrategy } = require('passport-instagram');
 const { Strategy: LocalStrategy } = require('passport-local');
 const { Strategy: FacebookStrategy } = require('passport-facebook');
@@ -179,7 +179,7 @@ passport.use(new FacebookStrategy({
 passport.use(new GitHubStrategy({
   clientID: process.env.GITHUB_ID,
   clientSecret: process.env.GITHUB_SECRET,
-  callbackURL: '/auth/github/callback',
+  callbackURL: `${process.env.BASE_URL}/auth/github/callback`,
   passReqToCallback: true,
   scope: ['user:email']
 }, (req, accessToken, refreshToken, profile, done) => {
@@ -309,7 +309,7 @@ passport.use(new GoogleStrategy({
           user.tokens.push({ kind: 'google', accessToken });
           user.profile.name = user.profile.name || profile.displayName;
           user.profile.gender = user.profile.gender || profile._json.gender;
-          user.profile.picture = user.profile.picture || profile._json.image.url;
+          user.profile.picture = user.profile.picture || profile._json.picture;
           user.save((err) => {
             req.flash('info', { msg: 'Google account has been linked.' });
             done(err, user);
@@ -335,7 +335,7 @@ passport.use(new GoogleStrategy({
           user.tokens.push({ kind: 'google', accessToken });
           user.profile.name = profile.displayName;
           user.profile.gender = profile._json.gender;
-          user.profile.picture = profile._json.image.url;
+          user.profile.picture = profile._json.picture;
           user.save((err) => {
             done(err, user);
           });
@@ -528,29 +528,26 @@ passport.use(new OpenIDStrategy({
           if (err) { return done(err); }
           user.steam = steamId;
           user.tokens.push({ kind: 'steam', accessToken: steamId });
-          request(profileURL, (error, response, body) => {
-            if (!error && response.statusCode === 200) {
-              const data = JSON.parse(body);
-              const profile = data.response.players[0];
+          axios.get(profileURL)
+            .then((res) => {
+              const profile = res.data.response.players[0];
               user.profile.name = user.profile.name || profile.personaname;
               user.profile.picture = user.profile.picture || profile.avatarmedium;
               user.save((err) => {
                 done(err, user);
               });
-            } else {
+            })
+            .catch((err) => {
               user.save((err) => { done(err, user); });
-              done(error, null);
-            }
-          });
+              done(err, null);
+            });
         });
       }
     });
   } else {
-    request(profileURL, (error, response, body) => {
-      if (!error && response.statusCode === 200) {
-        const data = JSON.parse(body);
+    axios.get(profileURL)
+      .then(({ data }) => {
         const profile = data.response.players[0];
-
         const user = new User();
         user.steam = steamId;
         user.email = `${steamId}@steam.com`; // steam does not disclose emails, prevent duplicate keys
@@ -560,10 +557,9 @@ passport.use(new OpenIDStrategy({
         user.save((err) => {
           done(err, user);
         });
-      } else {
-        done(error, null);
-      }
-    });
+      }).catch((err) => {
+        done(err, null);
+      });
   }
 }));
 
@@ -602,7 +598,7 @@ exports.isAuthenticated = (req, res, next) => {
  * Authorization Required middleware.
  */
 exports.isAuthorized = (req, res, next) => {
-  const provider = req.path.split('/').slice(-1)[0];
+  const provider = req.path.split('/')[2];
   const token = req.user.tokens.find(token => token.kind === provider);
   if (token) {
     next();
